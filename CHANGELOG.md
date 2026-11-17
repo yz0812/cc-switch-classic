@@ -5,9 +5,19 @@ All notable changes to CC Switch will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Classic（经典版）1.2.0 — 2026-11-14
+## Classic（经典版）1.2.0 — 2026-11-17
 
-本节记录经典版自有变化；本版跟进官方内核 4.0.20 → 4.0.29，故产品版本升次版本。以下历史版本的「Classic（经典版）」小节编号沿用当次产品版本。
+这是 yz0812 独立维护版的首次正式发布，产品版本与直接上游 jzcangshu/cc-switch-classic 的 v1.2.0 一致，实际集成内核为 4.0.29。保留经典版已有能力，并包含以下独立维护改动。
+
+### 独立维护版改动
+
+- 修复 Codex 聚合模式的官方 GPT 模型目录丢失 Fast 能力；直连和路由支持 Responses 与 Chat，显式关闭仍生效，不给未知模型虚构能力。
+- 所有应用的新增供应商页仅保留自身官方登录预设；Codex 额外保留 xAI API 与 OAuth。支持统一供应商的应用保留 NewAPI、自定义网关及管理入口，所有应用保留手动配置，已有配置不受影响。
+- 首页仓库链接、反馈、下载和更新入口指向 yz0812/cc-switch-classic。
+- 仅提供 Windows x64 便携 ZIP，内含 cc-switch.exe 与 portable.ini；保留便携标记，解压即可使用，需要 Microsoft Edge WebView2 Runtime。
+- 从此前同为 1.2.0 的 Actions 测试包迁移时，请手动下载本正式包；同版本号不会触发升级提示。
+
+以下记录本版继承的经典版上游变化。历史版本的「Classic（经典版）」小节编号沿用当次产品版本。
 
 ### 跟进内核（4.0.20 → 4.0.29）
 
@@ -32,7 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 致谢
 
-- @yz0812（PR #11）：独立定位了聚合模式模型目录丢失 Codex Fast 能力的成因，并对照 OpenAI Codex 源码给出完整证据链。v1.2.0 已随内核升级内置同能力——供应商卡片「保留官方 Fast 档」开关（直连/路由、原生 Responses 生效），感谢这份高质量分析。
+- @yz0812（PR #11）：独立定位了聚合模式模型目录丢失 Codex Fast 能力的成因，并对照 OpenAI Codex 源码给出证据链。上游 v1.2.0 提供供应商卡片「保留官方 Fast 档」开关，适用于直连/路由的原生 Responses；本独立维护版另行保留聚合与 Chat 场景的修复，见本节开头。
 
 ### 预设口径（延续无推广契约）
 

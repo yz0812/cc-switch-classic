@@ -2,32 +2,32 @@
   "version": "1.2.0",
   "items": [
     {
-      "type": "new",
-      "zh": "会话管理支持正文搜索，点结果直接跳到对应消息",
-      "zh-TW": "會話管理支援正文搜尋，點結果直接跳到對應訊息",
-      "en": "Session search now looks into message bodies and jumps straight to the hit",
-      "ja": "セッション検索が本文も対象にし、該当メッセージへ直接ジャンプします"
-    },
-    {
-      "type": "new",
-      "zh": "新增 Copilot CLI 受管应用支持",
-      "zh-TW": "新增 Copilot CLI 受管應用支援",
-      "en": "Copilot CLI is now a managed app, with prompt files and config directories wired",
-      "ja": "Copilot CLI を管理対象アプリとして追加しました"
-    },
-    {
-      "type": "new",
-      "zh": "首页卡片拖拽支持边缘自动滚动，长列表挪卡建组更顺手",
-      "zh-TW": "首頁卡片拖曳支援邊緣自動捲動，長列表挪卡建組更順手",
-      "en": "Home cards auto-scroll when dragged to the list edges — rearrange and group across long lists",
-      "ja": "カードを端でドラッグすると自動スクロールし、長いリストでも自由に並べ替え・グループ化できます"
+      "type": "fix",
+      "zh": "修复 Codex 聚合与 Chat 场景的官方 GPT Fast 能力",
+      "zh-TW": "修復 Codex 聚合與 Chat 場景的官方 GPT Fast 能力",
+      "en": "Preserve official GPT Fast capabilities in Codex aggregation and Chat routes",
+      "ja": "Codex の集約・Chat 経由で公式 GPT の Fast 機能を保持します"
     },
     {
       "type": "improve",
-      "zh": "跟进内核 4.0.29：Codex 官方额度保护默认开启，可在设置调整",
-      "zh-TW": "跟進內核 4.0.29：Codex 官方額度保護預設開啟，可在設定調整",
-      "en": "Kernel 4.0.29: Codex official quota protection is now on by default (adjustable in settings)",
-      "ja": "コア 4.0.29 追随：Codex 公式クォータ保護が既定で有効（設定で変更可）"
+      "zh": "精简新增供应商，保留官方登录、Codex xAI 和适用网关入口",
+      "zh-TW": "精簡新增供應商，保留官方登入、Codex xAI 和適用閘道入口",
+      "en": "Simplify presets to official sign-in, Codex xAI, and supported gateway entries",
+      "ja": "追加プリセットを公式ログイン、Codex xAI、対応ゲートウェイに整理しました"
+    },
+    {
+      "type": "improve",
+      "zh": "首页、反馈、下载和更新入口改为本独立维护仓库",
+      "zh-TW": "首頁、回饋、下載和更新入口改為本獨立維護倉庫",
+      "en": "Home, feedback, downloads, and updates now point to this independently maintained repository",
+      "ja": "ホーム、フィードバック、ダウンロード、更新先を独立保守リポジトリに統一しました"
+    },
+    {
+      "type": "improve",
+      "zh": "仅发布 Windows x64 便携包，保留聚合与已有配置",
+      "zh-TW": "僅發布 Windows x64 可攜包，保留聚合與既有設定",
+      "en": "Ship a Windows x64 portable ZIP while preserving aggregation and existing configurations",
+      "ja": "Windows x64 ポータブル版を提供し、集約機能と既存設定を保持します"
     }
   ]
 }
