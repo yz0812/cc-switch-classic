@@ -9,6 +9,24 @@ import { useCodexConfigState } from "@/components/providers/forms/hooks/useCodex
 // 注意：initialData 必须是稳定引用（hook 的 init effect 依赖 [initialData]）。
 // 写成内联字面量会每次 re-render 产生新引用 → effect 反复 setState → 死循环 OOM。
 describe("useCodexConfigState catalog load", () => {
+  it.each([undefined, true, false])(
+    "preserves the Fast preference %s, defaulting to enabled",
+    (keep) => {
+      const initialData = {
+        settingsConfig: {
+          auth: {},
+          config: "",
+          modelCatalog: {
+            models: [{ model: "gpt-5.5" }],
+            officialSpeedTiers: keep,
+          },
+        },
+      };
+      const { result } = renderHook(() => useCodexConfigState({ initialData }));
+      expect(result.current.codexOfficialSpeedTiers).toBe(keep !== false);
+    },
+  );
+
   it("preserves native-profile hidden fields (camelCase, DB SSOT)", () => {
     const initialData = {
       settingsConfig: {

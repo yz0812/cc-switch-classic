@@ -242,7 +242,7 @@ interface CodexFormFieldsProps {
   autoReviewModel?: string;
   onAutoReviewModelChange?: (model: string) => void;
   // Keep the official Fast speed tier on GPT rows mirrored from Codex's bundled
-  // entries: `modelCatalog.officialSpeedTiers`. Native Responses only.
+  // entries: `modelCatalog.officialSpeedTiers`. Responses and Chat, enabled by default.
   officialSpeedTiers?: boolean;
   onOfficialSpeedTiersChange?: (keep: boolean) => void;
 
@@ -701,7 +701,7 @@ export function CodexFormFields({
   catalogModels = [],
   autoReviewModel = "",
   onAutoReviewModelChange,
-  officialSpeedTiers = false,
+  officialSpeedTiers = true,
   onOfficialSpeedTiersChange,
   onCatalogModelsChange,
   speedTestEndpoints,
@@ -1414,12 +1414,12 @@ export function CodexFormFields({
     </div>
   );
 
-  // 保留官方 Fast 档：镜像官方的 GPT 行默认清空速度档，后面接官方账号的中转（如 CPA）才认
-  // service_tier=priority。Chat、Anthropic 转换会把它转给不认的上游，Copilot 走自己的目录，
-  // 都只给原生 Responses；聚合布局不显示（合并目录不看卡上的设置）。
+  // 独立维护版默认保留官方镜像的速度档；直连、路由可显式关闭。
+  // 聚合始终按模型能力保留，Anthropic 和 Copilot 使用各自的能力来源。
   const officialSpeedTiersToggle = onOfficialSpeedTiersChange &&
     !isCopilotPreset &&
-    effectiveApiFormat === "openai_responses" && (
+    (effectiveApiFormat === "openai_responses" ||
+      effectiveApiFormat === "openai_chat") && (
       <div className="flex items-center justify-between gap-4">
         {labelWithHelp(
           t("codexConfig.officialSpeedTiersLabel", {
@@ -1427,7 +1427,7 @@ export function CodexFormFields({
           }),
           t("codexConfig.officialSpeedTiersHint", {
             defaultValue:
-              "让模型列表里的 GPT 模型保留官方的 Fast 速度档，Codex 选了 Fast 后请求会带 service_tier=priority。只有转发官方 ChatGPT 账号的中转（如 CPA）才认，会更快消耗额度；其他上游可能报错或按更高价计费。打开后，之前在官方卡下选过的 Fast 会立刻在这家生效。聚合模式下不生效。改完需要重启 Codex。",
+              "默认保留匹配官方 GPT 模型的 Fast 档，适用于 Responses 和 Chat 转换。此开关仅控制直连和路由；聚合模式始终保留模型声明的速度档。保留档位不会替你选择 Fast，但 Codex 已保存的 Fast 选择可能立即生效。实际支持和计费由上游决定，更新模型目录后需重启 Codex。",
           }),
           "codexOfficialSpeedTiers",
         )}

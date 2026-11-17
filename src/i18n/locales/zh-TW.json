@@ -2136,7 +2136,7 @@
 
     "autoReviewModelNoList": "這張卡沒有模型列表：Codex 會用官方的 codex-auto-review 審批，只有部分轉發 ChatGPT 帳號的中轉認得它，不認就會回報 404。在上面的模型列表裡加上模型後就能選。",
     "officialSpeedTiersLabel": "保留官方 Fast 檔",
-    "officialSpeedTiersHint": "讓模型列表裡的 GPT 模型保留官方的 Fast 速度檔，Codex 選了 Fast 後請求會帶 service_tier=priority。只有轉發官方 ChatGPT 帳號的中轉（如 CPA）才認得，會更快消耗額度；其他上游可能報錯或按更高價計費。開啟後，先前在官方卡下選過的 Fast 會立刻在這家生效。聚合模式下不生效。改完需要重新啟動 Codex。",
+    "officialSpeedTiersHint": "預設保留符合官方 GPT 模型的 Fast 檔，適用於 Responses 和 Chat 轉換。此開關僅控制直連和路由；聚合模式始終保留模型宣告的速度檔。保留檔位不會替你選擇 Fast，但 Codex 已儲存的 Fast 選擇可能立即生效。實際支援和計費由上游決定，更新模型目錄後需重新啟動 Codex。",
     "modelListHint": "修改後需要重新啟動 Codex。",
     "modelListOptionalHint": "留空使用 Codex 預設模型清單；填寫後使用此處的清單，修改後需重新啟動 Codex。",
     "modelMappingTitle": "模型對應（選填）",

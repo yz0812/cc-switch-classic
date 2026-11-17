@@ -1334,6 +1334,7 @@ fn codex_catalog_model_entry(
     entry_obj.insert("context_window".to_string(), json!(context_window));
     entry_obj.insert("max_context_window".to_string(), json!(context_window));
     entry_obj.insert("priority".to_string(), json!(1000 + priority));
+    // 通用模板的速度档不能代表当前模型；匹配官方模型时由专用分支保留其能力。
     entry_obj.insert("additional_speed_tiers".to_string(), json!([]));
     entry_obj.insert("service_tiers".to_string(), json!([]));
     entry_obj.insert("availability_nux".to_string(), Value::Null);
@@ -2183,35 +2184,32 @@ fn codex_model_catalog_from_settings(
     if let Some(model) = codex_card_auto_review_model(settings) {
         apply_codex_auto_review_model(&mut catalog, model);
     }
-    if codex_card_keeps_official_speed_tiers(settings) {
-        apply_codex_official_speed_tiers(&mut catalog, config_text, profile);
+    if !codex_card_keeps_official_speed_tiers(settings) {
+        clear_codex_official_speed_tiers(&mut catalog, config_text, profile);
     }
     Ok(Some(catalog))
 }
 
 /// 卡上的「保留官方 Fast 档」（`modelCatalog.officialSpeedTiers`）。和自动审批模型一样只在
-/// 直连、路由下生效，聚合下不看。
+/// 直连、路由下生效，聚合下不看。独立维护版默认保留，只有显式 false 才关闭。
 fn codex_card_keeps_official_speed_tiers(settings: &Value) -> bool {
     settings
         .get("modelCatalog")
         .and_then(|catalog| catalog.get("officialSpeedTiers"))
         .and_then(Value::as_bool)
-        .unwrap_or(false)
+        .unwrap_or(true)
 }
 
-/// 把官方的速度档还给镜像官方的 GPT 行（[`codex_official_model_entry`] 默认清空）。
-///
-/// Codex 只在目录行声明了这一档时才发 `service_tier`：没声明时 `config.toml` 里的
-/// `service_tier = "fast"` 会被略过并打一条警告，声明了就照发 `"priority"`（0.166 实测）。
-/// 所以只有后面接官方账号的中转（如 CPA）才该打开，而且打开后之前在官方卡下选过的 Fast
-/// 会立刻在这家生效。只认原生 Responses：Chat 转换会把这个字段原样转给不认识它的上游。
-fn apply_codex_official_speed_tiers(
+/// 用户明确关闭时清空官方镜像 GPT 行的速度档，不改厂商原生目录或其他协议的能力。
+fn clear_codex_official_speed_tiers(
     catalog: &mut Value,
     config_text: &str,
     profile: CodexCatalogToolProfile,
 ) {
-    if profile != CodexCatalogToolProfile::NativeResponses
-        || codex_official_vendor_catalog_models(config_text, profile).is_some()
+    if !matches!(
+        profile,
+        CodexCatalogToolProfile::NativeResponses | CodexCatalogToolProfile::ProxyChat
+    ) || codex_official_vendor_catalog_models(config_text, profile).is_some()
     {
         return;
     }
@@ -2224,16 +2222,12 @@ fn apply_codex_official_speed_tiers(
             continue;
         };
         // 生成时按同一规则找官方条目：找得到的行就是镜像出来的那些。
-        let Some(found) = find_codex_official_model(slug, &official) else {
+        let Some(_) = find_codex_official_model(slug, &official) else {
             continue;
         };
-        let tiers =
-            ["service_tiers", "additional_speed_tiers"].map(|key| (key, found.get(key).cloned()));
         if let Some(obj) = entry.as_object_mut() {
-            for (key, value) in tiers {
-                if let Some(value) = value {
-                    obj.insert(key.to_string(), value);
-                }
+            for key in ["service_tiers", "additional_speed_tiers"] {
+                obj.insert(key.to_string(), json!([]));
             }
         }
     }
@@ -2370,9 +2364,8 @@ fn codex_official_model_entry(
     }
     // 官方隐藏的条目用户明确写了，也要出现在选择器里。
     obj.insert("visibility".to_string(), json!("list"));
-    // 速度档、升级提示归官方账号。
-    obj.insert("service_tiers".to_string(), json!([]));
-    obj.insert("additional_speed_tiers".to_string(), json!([]));
+    // 速度档是模型能力：保留官方声明，让 /fast 命令与请求里的 priority 都能生效。
+    // 官方账号的可用性、升级提示仍不带到第三方。
     obj.insert("availability_nux".to_string(), Value::Null);
     obj.insert("upgrade".to_string(), Value::Null);
     // 第三方不支持 Responses Lite 协议。
@@ -2954,8 +2947,8 @@ fn build_simplified_catalog_from_texts(config_text: &str, catalog_text: &str) ->
         extract_codex_top_level_u64(config_text, "model_context_window").unwrap_or(128_000);
 
     let mut official: Option<Vec<Value>> = None;
-    // 镜像行默认清空速度档，带着就是卡上开了「保留官方 Fast 档」。
-    let mut official_speed_tiers = false;
+    // 镜像行默认保留速度档；反向解析必须显式保留关闭状态，避免再次保存时恢复默认。
+    let mut official_speed_tiers: Option<bool> = None;
     let mut entries = Vec::with_capacity(models.len());
     for entry in models {
         let Some(model) = entry
@@ -2996,10 +2989,15 @@ fn build_simplified_catalog_from_texts(config_text: &str, catalog_text: &str) ->
                 {
                     restored["contextWindow"] = json!(window);
                 }
-                official_speed_tiers |= entry
-                    .get("additional_speed_tiers")
-                    .and_then(Value::as_array)
-                    .is_some_and(|tiers| !tiers.is_empty());
+                *official_speed_tiers.get_or_insert(false) |=
+                    ["service_tiers", "additional_speed_tiers"]
+                        .iter()
+                        .any(|key| {
+                            entry
+                                .get(*key)
+                                .and_then(Value::as_array)
+                                .is_some_and(|tiers| !tiers.is_empty())
+                        });
                 entries.push(restored);
                 continue;
             }
@@ -3077,8 +3075,8 @@ fn build_simplified_catalog_from_texts(config_text: &str, catalog_text: &str) ->
     if let Some(model) = auto_review {
         simplified["autoReviewModel"] = json!(model);
     }
-    if official_speed_tiers {
-        simplified["officialSpeedTiers"] = json!(true);
+    if let Some(keep) = official_speed_tiers {
+        simplified["officialSpeedTiers"] = json!(keep);
     }
     Some(simplified)
 }
@@ -5214,7 +5212,11 @@ wire_api = "responses"
                 "tool_mode": "code_mode_only",
                 "use_responses_lite": true,
                 "visibility": "hide",
-                "service_tiers": [{ "id": "priority", "name": "Fast" }],
+                "service_tiers": [{
+                    "id": "priority",
+                    "name": "Fast",
+                    "description": "Fast processing"
+                }],
                 "additional_speed_tiers": ["fast"],
                 "upgrade": { "model": "gpt-next" },
                 "context_window": 272_000,
@@ -5271,7 +5273,7 @@ wire_api = "responses"
         };
         let official = (
             json!(["fast"]),
-            json!([{ "id": "priority", "name": "Fast" }]),
+            official_gpt_rows()[1]["service_tiers"].clone(),
         );
         let cleared = (json!([]), json!([]));
 
@@ -5279,13 +5281,17 @@ wire_api = "responses"
         assert_eq!(tiers(&kept, 0), official);
         // 模板生成的非 GPT 行没有官方档可还。
         assert_eq!(tiers(&kept, 1), cleared);
-        // 默认关；Chat 转换会把 service_tier 转给不认它的上游，开了也不还。
+        // 显式关闭才清空；原生 Responses 和 Chat 转换都支持保留。
         assert_eq!(
             tiers(&catalog(false, CodexCatalogToolProfile::NativeResponses), 0),
             cleared
         );
         assert_eq!(
             tiers(&catalog(true, CodexCatalogToolProfile::ProxyChat), 0),
+            official
+        );
+        assert_eq!(
+            tiers(&catalog(false, CodexCatalogToolProfile::ProxyChat), 0),
             cleared
         );
 
@@ -5298,10 +5304,10 @@ wire_api = "responses"
         let simplified = restored(&kept);
         assert_eq!(simplified["officialSpeedTiers"], true);
         assert_eq!(simplified["models"][0], json!({ "model": "gpt-6-sol" }));
-        assert!(
+        assert_eq!(
             restored(&catalog(false, CodexCatalogToolProfile::NativeResponses))
-                .get("officialSpeedTiers")
-                .is_none()
+                ["officialSpeedTiers"],
+            false
         );
     }
 
@@ -5359,11 +5365,14 @@ wire_api = "responses"
         assert_eq!(gpt["default_reasoning_level"], "low");
         assert_eq!(gpt["supported_reasoning_levels"][1]["effort"], "xhigh");
         assert_eq!(gpt["supports_image_detail_original"], true);
-        // 官方账号、官方后端的字段改掉。
+        // 官方账号、官方后端的字段改掉，模型的速度档保留。
         assert_eq!(gpt["use_responses_lite"], false);
         assert_eq!(gpt["visibility"], "list");
-        assert_eq!(gpt["service_tiers"], json!([]));
-        assert_eq!(gpt["additional_speed_tiers"], json!([]));
+        assert_eq!(
+            gpt["service_tiers"],
+            official_gpt_rows()[1]["service_tiers"]
+        );
+        assert_eq!(gpt["additional_speed_tiers"], json!(["fast"]));
         assert_eq!(gpt["upgrade"], Value::Null);
         assert_eq!(gpt["priority"], 1000);
 
@@ -5517,6 +5526,57 @@ wire_api = "responses"
     }
 
     #[test]
+    fn fast_tiers_follow_the_matched_official_model() {
+        let mut official = official_gpt_rows();
+        official[0]["service_tiers"] = json!([]);
+        official[0]["additional_speed_tiers"] = json!([]);
+        with_official_models(official, || {
+            for profile in [
+                CodexCatalogToolProfile::NativeResponses,
+                CodexCatalogToolProfile::ProxyChat,
+                CodexCatalogToolProfile::Anthropic,
+                CodexCatalogToolProfile::Copilot,
+            ] {
+                let models = catalog_for(
+                    json!([
+                        { "model": "openai/gpt-5.5" },
+                        { "model": "gpt-6" },
+                        { "model": "custom-model" }
+                    ]),
+                    "",
+                    profile,
+                );
+                let mirrors_openai = matches!(
+                    profile,
+                    CodexCatalogToolProfile::NativeResponses | CodexCatalogToolProfile::ProxyChat
+                );
+                for (index, model) in models.iter().enumerate() {
+                    let supports_fast = index == 0 && mirrors_openai;
+                    assert_eq!(
+                        model["service_tiers"]
+                            .as_array()
+                            .unwrap()
+                            .iter()
+                            .any(|tier| tier["id"] == "priority"),
+                        supports_fast,
+                        "{} {profile:?}",
+                        model["slug"]
+                    );
+                    assert_eq!(
+                        model["additional_speed_tiers"],
+                        if supports_fast {
+                            json!(["fast"])
+                        } else {
+                            json!([])
+                        }
+                    );
+                    assert!(model.get("default_service_tier").is_none_or(Value::is_null));
+                }
+            }
+        });
+    }
+
+    #[test]
     fn official_gpt_global_context_windows_do_not_become_per_model_overrides() {
         with_official_models(official_gpt_rows(), || {
             let config = "model_context_window = 1000000\n";
@@ -5650,7 +5710,10 @@ wire_api = "responses"
     fn stacked_gpt_rows_mirror_under_their_prefixed_id() {
         let models = with_official_models(official_gpt_rows(), || {
             let route = json!({ "modelCatalog": { "models": [{ "model": "gpt-6-sol" }] } });
-            let member = json!({ "modelCatalog": { "models": [{ "model": "gpt-6-sol" }] } });
+            // 卡片显式关闭仅影响直连/路由，聚合成员继续保留模型的速度档。
+            let member = json!({ "modelCatalog": {
+                "models": [{ "model": "gpt-6-sol" }], "officialSpeedTiers": false
+            } });
             plan_codex_stack_catalog(
                 CodexStackRoute::ThirdParty(CodexCatalogRow {
                     settings: &route,
@@ -5682,6 +5745,11 @@ wire_api = "responses"
                 "GPT-6 Sol prompt"
             );
             assert_eq!(model["use_responses_lite"], false);
+            assert_eq!(
+                model["service_tiers"],
+                official_gpt_rows()[1]["service_tiers"]
+            );
+            assert_eq!(model["additional_speed_tiers"], json!(["fast"]));
         }
         // 各家按自己的链路：走 Chat 的那家不发 original 精度的图片。
         assert_eq!(models[0]["supports_image_detail_original"], true);

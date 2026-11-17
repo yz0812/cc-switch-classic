@@ -1809,8 +1809,9 @@ function ProviderFormFull({
           ) {
             configObj.modelCatalog.autoReviewModel = autoReviewModel;
           }
-          if (codexOfficialSpeedTiers) {
-            configObj.modelCatalog.officialSpeedTiers = true;
+          // 默认保留无需额外写键；关闭必须显式保存，不能退回默认值。
+          if (!codexOfficialSpeedTiers) {
+            configObj.modelCatalog.officialSpeedTiers = false;
           }
         }
         settingsConfig = JSON.stringify(configObj);

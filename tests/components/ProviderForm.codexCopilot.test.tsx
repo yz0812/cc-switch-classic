@@ -192,6 +192,51 @@ async function selectFormat(format: CodexCopilotApiFormat) {
 }
 
 describe("Codex Copilot provider form", () => {
+  it.each(["openai_responses", "openai_chat"] as const)(
+    "saves an explicit Fast opt-out for a %s card",
+    async (apiFormat) => {
+      const onSubmit = vi.fn<(values: ProviderFormValues) => void>();
+      render(
+        <QueryClientProvider client={createTestQueryClient()}>
+          <ProviderForm
+            appId="codex"
+            providerId="fast-card"
+            submitLabel="save"
+            onSubmit={onSubmit}
+            onCancel={vi.fn()}
+            initialData={{
+              name: "Fast card",
+              category: "third_party",
+              meta: { apiFormat },
+              settingsConfig: {
+                auth: { OPENAI_API_KEY: "test-key" },
+                config:
+                  'model = "gpt-5.5"\nmodel_provider = "custom"\n[model_providers.custom]\nname = "custom"\nbase_url = "https://api.example.com"\nwire_api = "responses"',
+                modelCatalog: { models: [{ model: "gpt-5.5" }] },
+              },
+            }}
+          />
+        </QueryClientProvider>,
+      );
+      const advanced = screen.getByRole("button", { name: /高级选项/ });
+      if (advanced.getAttribute("aria-expanded") !== "true") {
+        fireEvent.click(advanced);
+      }
+      const toggle = screen.getByRole("switch", {
+        name: /officialSpeedTiersLabel|保留官方 Fast 档/,
+      });
+      expect(toggle).toBeChecked();
+      fireEvent.click(toggle);
+      expect(toggle).not.toBeChecked();
+      fireEvent.click(screen.getByRole("button", { name: "save" }));
+      await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+      expect(
+        JSON.parse(onSubmit.mock.calls[0][0].settingsConfig).modelCatalog
+          .officialSpeedTiers,
+      ).toBe(false);
+    },
+  );
+
   beforeEach(() => {
     copilotAuthState.isAuthenticated = true;
     copilotAuthState.isStatusSuccess = true;
