@@ -20,6 +20,7 @@ import {
   type ProviderFormValues,
 } from "@/components/providers/forms/ProviderForm";
 import { AuthSettingsPanel } from "@/components/providers/AuthSettingsPanel";
+import { AddProviderPresetContext } from "./forms/addProviderPresetPolicy";
 import { UniversalProviderFormModal } from "@/components/universal/UniversalProviderFormModal";
 import { UniversalProviderPanel } from "@/components/universal";
 import { providerPresets } from "@/config/claudeProviderPresets";
@@ -534,7 +535,9 @@ export function AddProviderDialog({
           {t("common.loading")}
         </div>
       ) : (
-        form
+        <AddProviderPresetContext.Provider value={appId}>
+          {form}
+        </AddProviderPresetContext.Provider>
       )}
 
       {showUniversalTab && (

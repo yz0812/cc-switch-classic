@@ -1,4 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useContext, useEffect, useMemo, useRef, useState } from "react";
+import {
+  AddProviderPresetContext,
+  getAddProviderPresetEntries,
+} from "./addProviderPresetPolicy";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import {
@@ -157,6 +161,14 @@ export function ProviderPresetSelector({
   defaultOpen = false,
 }: Readonly<ProviderPresetSelectorProps>) {
   const { t } = useTranslation();
+  const addAppId = useContext(AddProviderPresetContext);
+  const pickerEntries = useMemo(
+    () =>
+      addAppId !== null
+        ? getAddProviderPresetEntries(addAppId, presetEntries)
+        : presetEntries,
+    [addAppId, presetEntries],
+  );
   const ref = useRef<HTMLDivElement>(null);
   const edited = useFormEditedSince(ref, selectedPresetId ?? "custom");
   const [pending, setPending] = useState<PresetEntry | null>(null);
@@ -183,7 +195,7 @@ export function ProviderPresetSelector({
     <div ref={ref} className="space-y-3" data-preset-selector="">
       <PresetPicker
         appId={appId}
-        entries={presetEntries}
+        entries={pickerEntries}
         onPick={requestPresetChange}
         selectedPresetId={selectedPresetId}
         onUniversalPresetSelect={onUniversalPresetSelect}
