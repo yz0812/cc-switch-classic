@@ -8,12 +8,12 @@
 
 *Classic V3-style UI on the cc-switch V4 core.*
 
-[![Classic](https://img.shields.io/badge/Classic-v1.2.0-blue)](https://github.com/jzcangshu/cc-switch-classic/releases)
+[![Classic](https://img.shields.io/badge/Classic-v1.2.0-blue)](https://github.com/yz0812/cc-switch-classic/releases)
 [![内核](https://img.shields.io/badge/内核-v4.0.29-green)](https://github.com/farion1231/cc-switch)
 [![License](https://img.shields.io/badge/License-MIT-lightgrey)](#license)
-[![平台](https://img.shields.io/badge/平台-Windows%20%7C%20Linux%20%7C%20macOS%20(未签名)-9cf)](#下载与更新)
+[![平台](https://img.shields.io/badge/平台-Windows%20x64%20便携版-9cf)](#下载与更新)
 
-[下载最新版](https://github.com/jzcangshu/cc-switch-classic/releases/latest) · [更新日志](https://github.com/jzcangshu/cc-switch-classic/releases) · [上游项目](https://github.com/farion1231/cc-switch)
+[下载最新版](https://github.com/yz0812/cc-switch-classic/releases/latest) · [更新日志](https://github.com/yz0812/cc-switch-classic/releases) · [上游项目](https://github.com/farion1231/cc-switch)
 
 </div>
 
@@ -83,24 +83,22 @@
 | 你想要 | 选它 |
 |---|---|
 | 原汁原味官方版，第一时间获得上游新功能 | [上游 V4 原版](https://github.com/farion1231/cc-switch/releases) |
-| 和 V3 几乎一模一样的手感，内核还是新的 | ✅ **Classic（本仓库）**，[点此下载](https://github.com/jzcangshu/cc-switch-classic/releases/latest) |
+| 和 V3 几乎一模一样的手感，内核还是新的 | ✅ **Classic（本仓库）**，[点此下载](https://github.com/yz0812/cc-switch-classic/releases/latest) |
 
 ## 下载与更新
 
-1. 到 [Releases](https://github.com/jzcangshu/cc-switch-classic/releases/latest) 按平台下载：
-   - **Windows x64**: `…-Windows-setup.exe`（安装版）/ `…-Windows-Portable.zip`（绿色版，解压即用）
-   - **Windows ARM64**: `…-Windows-arm64-setup.exe` / `…-Windows-arm64-Portable.zip`
-   - **Linux x64**: `…-Linux-x86_64.AppImage` / `.deb` / `.rpm`
-   - **Linux ARM64**: `…-Linux-arm64.AppImage` / `.deb` / `.rpm`
-   - **macOS**（universal，未签名）: `…-macOS-unsigned.dmg`（推荐）或 `…-macOS-unsigned.zip`
-2. **macOS 未签名包**首次打开需在「系统设置 → 隐私与安全性」点击「仍要打开」放行；macOS 暂不支持应用内自动更新（Windows/Linux 安装版支持）。
-3. 应用内的更新提示**只跟随 Classic 主版本号**（v1.x）；当官方 v4 版发布内核升级后，我们会尽快跟进并推送 Classic 版的更新。
+1. 正式发布后，到 [Releases](https://github.com/yz0812/cc-switch-classic/releases/latest) 下载唯一产物 `CC-Switch-Classic-v{版本}-Windows-Portable.zip`（Windows x64）。
+2. 解压后运行 `cc-switch.exe`，保留同目录的 `portable.ini`。系统需要已安装 Microsoft Edge WebView2 Runtime。
+3. 在 Actions → Release → Run workflow 可手动构建，完成后从 `windows-x64-portable` artifact 下载；手动运行不会创建 Release。
+4. 本维护分支只发布便携 ZIP，更新时下载新包；不提供安装器、其他平台包或 `latest.json` 签名更新清单。
 
 ## 与上游的关系
 
+- **独立维护**：基于 [jzcangshu/cc-switch-classic](https://github.com/jzcangshu/cc-switch-classic)，保留自己的聚合模型 Fast 支持，并继续合并上游改动。
+
 - **内核**：定期合并 [farion1231/cc-switch](https://github.com/farion1231/cc-switch) 的更新（已集成版本以仓库中的版本清单为准），供应商协议、会话管理等能力与上游同步
 - **界面**：坚持 V3 经典样式，不随上游改版
-- **反馈**：界面与 Classic 相关问题提到[本仓库 issues](https://github.com/jzcangshu/cc-switch-classic/issues)；内核功能问题建议先到[上游 issues](https://github.com/farion1231/cc-switch/issues) 搜索
+- **反馈**：界面与 Classic 相关问题提到[本仓库 issues](https://github.com/yz0812/cc-switch-classic/issues)；内核功能问题建议先到[上游 issues](https://github.com/farion1231/cc-switch/issues) 搜索
 
 ## 开发
 

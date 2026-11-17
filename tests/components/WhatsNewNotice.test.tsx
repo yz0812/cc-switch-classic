@@ -207,12 +207,12 @@ describe("WhatsNewNotice", () => {
       screen.getAllByRole("button", { name: "whatsNew.versionDetails" })[0],
     );
     expect(mocks.openExternal).toHaveBeenCalledWith(
-      "https://github.com/jzcangshu/cc-switch-classic/releases/tag/v1.0.4",
+      "https://github.com/yz0812/cc-switch-classic/releases/tag/v1.0.4",
     );
 
     fireEvent.click(screen.getByRole("button", { name: "whatsNew.viewFull" }));
     expect(mocks.openExternal).toHaveBeenLastCalledWith(
-      "https://github.com/jzcangshu/cc-switch-classic/releases",
+      "https://github.com/yz0812/cc-switch-classic/releases",
     );
     await waitFor(() => expect(title()).not.toBeInTheDocument());
     expect(mocks.save).toHaveBeenCalledWith(

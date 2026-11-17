@@ -6,7 +6,7 @@
  * - 内核版本：上游 farion1231/cc-switch 的版本（tauri.conf 的 version），跟随上游更新，
  *   更新日志只放已跟进的内核变更。
  */
-export const REPO_OWNER = "jzcangshu";
+export const REPO_OWNER = "yz0812";
 export const REPO_NAME = "cc-switch-classic";
 export const REPO_URL = `https://github.com/${REPO_OWNER}/${REPO_NAME}`;
 export const RELEASES_URL = `${REPO_URL}/releases`;

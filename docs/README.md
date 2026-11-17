@@ -28,3 +28,5 @@
 [经典模型表单回退](decisions/implemented/bug-fix/2026-11-05-codex-classic-model-form.md)：独立默认模型、高级模型映射与升级配置保留。
 
 [模型目录的 Fast 能力](decisions/implemented/bug-fix/2026-11-11-codex-catalog-fast-mode.md)：保留官方 GPT 模型的速度档元数据，覆盖直连、路由及聚合模型。
+
+[独立维护版 Windows 便携包](decisions/implemented/process/2026-11-17-windows-portable-release.md)：主分支维护、单一 Windows x64 产物、手动构建与标签发布边界。

@@ -1,4 +1,5 @@
 import { compareVersions } from "@/lib/version";
+import { RELEASES_URL } from "@/lib/repo";
 
 /**
  * 更新摘要：每个版本一份 `src/whats-new/<version>.json`，构建时打进安装包。
@@ -114,6 +115,6 @@ export function changelogUrl(
   version?: string,
 ): string {
   // CC Switch Classic：更新日志只在新仓库；条目版本即 Classic 主版本
-  const base = "https://github.com/jzcangshu/cc-switch-classic/releases";
+  const base = RELEASES_URL;
   return version ? `${base}/tag/v${version}` : base;
 }

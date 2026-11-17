@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { REPO_URL } from "@/lib/repo";
 
 const BURST_LIFETIME_MS = 980;
 
@@ -84,7 +85,7 @@ export function RoutingActivationBrand({
       )}
 
       <motion.a
-        href="https://github.com/jzcangshu/cc-switch-classic"
+        href={REPO_URL}
         target="_blank"
         rel="noreferrer"
         className={cn(

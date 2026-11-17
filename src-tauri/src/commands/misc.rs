@@ -13,7 +13,7 @@ use std::path::{Path, PathBuf};
 /// Classic 主版本更新才推送更新提示；内核版本在 tauri.conf 的 version 里跟随上游。
 /// CLASSIC_VERSION 必须与 src/lib/classicVersion.ts 同值 bump——v1.1.1 只改了 TS 侧，
 /// 更新判定滞留 1.1.0 造成全量用户更新提示死循环；测试模块有守卫单测拦不同步。
-pub(crate) const CLASSIC_REPO: &str = "jzcangshu/cc-switch-classic";
+pub(crate) const CLASSIC_REPO: &str = "yz0812/cc-switch-classic";
 pub(crate) const CLASSIC_VERSION: &str = "1.2.0";
 use std::str::FromStr;
 use std::sync::Arc;
@@ -89,7 +89,7 @@ pub async fn check_for_updates(handle: AppHandle) -> Result<bool, String> {
     handle
         .opener()
         .open_url(
-            "https://github.com/jzcangshu/cc-switch-classic/releases/latest",
+            "https://github.com/yz0812/cc-switch-classic/releases/latest",
             None::<String>,
         )
         .map_err(|e| format!("打开更新页面失败: {e}"))?;
@@ -7326,11 +7326,11 @@ mod tests {
     fn portable_zip_url_matches_release_asset_names() {
         assert_eq!(
             portable_zip_url("4.0.12", false).as_deref(),
-            Some("https://github.com/jzcangshu/cc-switch-classic/releases/download/v4.0.12/CC-Switch-Classic-v4.0.12-Windows-Portable.zip")
+            Some("https://github.com/yz0812/cc-switch-classic/releases/download/v4.0.12/CC-Switch-Classic-v4.0.12-Windows-Portable.zip")
         );
         assert_eq!(
             portable_zip_url("v4.1.0-beta.1", true).as_deref(),
-            Some("https://github.com/jzcangshu/cc-switch-classic/releases/download/v4.1.0-beta.1/CC-Switch-Classic-v4.1.0-beta.1-Windows-arm64-Portable.zip")
+            Some("https://github.com/yz0812/cc-switch-classic/releases/download/v4.1.0-beta.1/CC-Switch-Classic-v4.1.0-beta.1-Windows-arm64-Portable.zip")
         );
         for bad in ["", "v", "latest", "4.0/../x", "4.0.0?x=1"] {
             assert!(portable_zip_url(bad, false).is_none(), "{bad}");

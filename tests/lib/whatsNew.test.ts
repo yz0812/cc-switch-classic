@@ -99,8 +99,10 @@ describe("language and links", () => {
 
   it("links to the website changelog, Traditional Chinese uses the zh pages", () => {
     expect(changelogUrl("en", "1.0.2")).toBe(
-      "https://github.com/jzcangshu/cc-switch-classic/releases/tag/v1.0.2",
+      "https://github.com/yz0812/cc-switch-classic/releases/tag/v1.0.2",
     );
-    expect(changelogUrl("zh-TW")).toBe("https://github.com/jzcangshu/cc-switch-classic/releases");
+    expect(changelogUrl("zh-TW")).toBe(
+      "https://github.com/yz0812/cc-switch-classic/releases",
+    );
   });
 });
