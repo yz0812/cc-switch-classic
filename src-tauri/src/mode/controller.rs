@@ -453,6 +453,7 @@ async fn write_proxy(
                 route,
                 base_url: &codex_base_url,
                 stack: &members,
+                route_key: stack.active_member_key(&route.id),
             };
             let mut prepared =
                 codex_direct::prepare(&state.codex_oauth_manager, &owner, &spec).map_err(err)?;
@@ -1663,7 +1664,8 @@ fn codex_official_login_now(
     let Some((mode, route)) = attached_route(state, app)? else {
         return Ok(None);
     };
-    let members = published_members(state, app, &settled_stack(app)?, &route)?;
+    let stack = settled_stack(app)?;
+    let members = published_members(state, app, &stack, &route)?;
     if !codex_direct::needs_official_rows(&route, &members) {
         return Ok(None);
     }
@@ -1674,6 +1676,7 @@ fn codex_official_login_now(
         route: &route,
         base_url: &base_url,
         stack: &members,
+        route_key: stack.active_member_key(&route.id),
     };
     let prepared = codex_direct::prepare(&state.codex_oauth_manager, &owner, &spec).map_err(err)?;
     codex_direct::predicted_official_login(&state.db, &owner, &spec, &prepared)
@@ -7397,7 +7400,10 @@ model_provider = "c"
         let catalog = codex_catalog();
         let models = catalog["models"].as_array().unwrap();
         let slugs: Vec<&str> = models.iter().map(|m| m["slug"].as_str().unwrap()).collect();
-        assert_eq!(slugs, vec!["gpt-a", "ccs-deepseek/deepseek-v4-pro"]);
+        assert_eq!(
+            slugs,
+            vec!["gpt-a", "ccs-deepseek/deepseek-v4-pro", "ccs-a/gpt-a"]
+        );
         let (route, stacked) = (&models[0], &models[1]);
         assert_eq!(route["priority"], 1);
         assert_eq!(route["context_window"], 200000);
@@ -7428,7 +7434,8 @@ model_provider = "c"
             vec![
                 "gpt-a",
                 "ccs-deepseek/deepseek-v4-pro",
-                "ccs-zhipu/gpt-zhipu"
+                "ccs-zhipu/gpt-zhipu",
+                "ccs-a/gpt-a"
             ]
         );
 
@@ -7442,6 +7449,61 @@ model_provider = "c"
         assert!(!state
             .proxy_service
             .live_has_proxy_placeholder(&AppType::Codex));
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn promoted_codex_member_keeps_its_exact_fast_alias() {
+        let _home = Home::new();
+        seed_codex("", None);
+        let member = codex_native(
+            "relay",
+            "https://relay.example/v1",
+            "",
+            Some(json!({"models": [{"model": "gpt-5.5"}]})),
+        );
+        let state = state_with(
+            AppType::Codex,
+            &[codex_stack_rows()[0].clone(), member],
+            "a",
+        )
+        .await;
+        enter(&state, &AppType::Codex, true).await.unwrap();
+        set_codex_member(&state, "relay", true).await;
+        let id = "ccs-relay/gpt-5.5";
+        let entry = || {
+            codex_catalog()["models"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|m| m["slug"] == id)
+                .cloned()
+        };
+        let original = entry().unwrap();
+        assert_eq!(original["visibility"], "list");
+        switch_route(&state, &AppType::Codex, "relay")
+            .await
+            .unwrap();
+        let hidden = entry().unwrap();
+        assert_eq!(hidden["visibility"], "hide");
+        assert_eq!(hidden["service_tiers"], original["service_tiers"]);
+        assert!(hidden["service_tiers"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|tier| tier["id"] == "priority"));
+        set_codex_member(&state, "a", false).await;
+        assert_eq!(
+            entry().unwrap()["visibility"],
+            "hide",
+            "last remaining member"
+        );
+        switch_route(&state, &AppType::Codex, "a").await.unwrap();
+        set_codex_member(&state, "relay", false).await;
+        assert!(
+            codex_doc().get("model_catalog_json").is_none(),
+            "removed members must not be advertised"
+        );
     }
 
     #[tokio::test]
@@ -7612,7 +7674,7 @@ model_provider = "c"
         );
         assert_eq!(all[0].provider_id, "a");
         let choices: Vec<_> = all.into_iter().filter(|c| c.provider_id != "a").collect();
-        // 默认那家的 `ccs-*` 不在合并目录里：选了也不写，跟随主模型。
+        // 默认那家的 `ccs-*` 只用于旧主模型选择，不参与面板校验：选了也不写，跟随主模型。
         set_stack_subagent(Some("ccs-a/gpt-a"), None);
         resync_codex_stack_catalog(&state)
             .await
@@ -7715,22 +7777,22 @@ model_provider = "c"
         enter(&state, &AppType::Codex, true).await.expect("enter");
         assert_eq!(
             catalog_auto_review(),
-            vec![Some("gpt-a-mini".to_string()); 2]
+            vec![Some("gpt-a-mini".to_string()); 4]
         );
 
         // 名单非空：合并目录里路由那家的行不带卡上的值，没设聚合审批模型时一行都不写。
         set_codex_member(&state, "deepseek", true).await;
-        assert_eq!(catalog_auto_review(), vec![None; 3]);
+        assert_eq!(catalog_auto_review(), vec![None; 5]);
 
         let id = "ccs-deepseek/deepseek-v4-pro";
         set_stack_auto_review(Some(id));
         resync_codex_stack_catalog(&state).await.expect("set");
-        assert_eq!(catalog_auto_review(), vec![Some(id.to_string()); 3]);
+        assert_eq!(catalog_auto_review(), vec![Some(id.to_string()); 5]);
 
-        // 默认那家的 `ccs-*` 不在合并目录里：不写。
+        // 默认那家的 `ccs-*` 只用于旧主模型选择，不参与面板校验：不写。
         set_stack_auto_review(Some("ccs-a/gpt-a"));
         resync_codex_stack_catalog(&state).await.expect("route id");
-        assert_eq!(catalog_auto_review(), vec![None; 3]);
+        assert_eq!(catalog_auto_review(), vec![None; 5]);
 
         // 成员移除后不写，加回来自动恢复。
         set_stack_auto_review(Some(id));
@@ -7789,15 +7851,12 @@ model_provider = "c"
 
         set_classic_subagents(true);
         resync_codex_stack_catalog(&state).await.expect("classic");
-        assert_eq!(catalog_agent_versions(), vec![json!("v1"), json!("v1")]);
+        assert_eq!(catalog_agent_versions(), vec![json!("v1"); 3]);
         assert_ne!(mode(&AppType::Codex).contract.unwrap(), native_contract);
 
         // 之后增删 Stack 模型照样按开关写。
         set_codex_member(&state, "zhipu", true).await;
-        assert_eq!(
-            catalog_agent_versions(),
-            vec![json!("v1"), json!("v1"), json!("v1")]
-        );
+        assert_eq!(catalog_agent_versions(), vec![json!("v1"); 4]);
         set_codex_member(&state, "zhipu", false).await;
 
         set_classic_subagents(false);
@@ -8313,7 +8372,10 @@ model_provider = "c"
             .iter()
             .map(|m| m["slug"].as_str().unwrap().to_string())
             .collect();
-        assert_eq!(slugs, vec!["gpt-a", "ccs-deepseek/deepseek-v5"]);
+        assert_eq!(
+            slugs,
+            vec!["gpt-a", "ccs-deepseek/deepseek-v5", "ccs-a/gpt-a"]
+        );
     }
 
     /// 「已添加」列表拖动排序：名单按 sort_index 重排，合并目录跟着重写；顺序没变时不写。
@@ -8331,7 +8393,8 @@ model_provider = "c"
             vec![
                 "gpt-a",
                 "ccs-deepseek/deepseek-v4-pro",
-                "ccs-zhipu/gpt-zhipu"
+                "ccs-zhipu/gpt-zhipu",
+                "ccs-a/gpt-a"
             ]
         );
 
@@ -8359,7 +8422,8 @@ model_provider = "c"
             vec![
                 "gpt-a",
                 "ccs-zhipu/gpt-zhipu",
-                "ccs-deepseek/deepseek-v4-pro"
+                "ccs-deepseek/deepseek-v4-pro",
+                "ccs-a/gpt-a"
             ]
         );
 
@@ -8422,7 +8486,8 @@ model_provider = "c"
             vec![
                 "gpt-a",
                 "ccs-zhipu/gpt-zhipu",
-                "ccs-deepseek/deepseek-v4-pro"
+                "ccs-deepseek/deepseek-v4-pro",
+                "ccs-a/gpt-a"
             ]
         );
     }
@@ -8488,7 +8553,8 @@ model_provider = "c"
             vec![
                 "gpt-a",
                 "ccs-deepseek/deepseek-v4-pro",
-                "ccs-zhipu/gpt-zhipu"
+                "ccs-zhipu/gpt-zhipu",
+                "ccs-a/gpt-a"
             ]
         );
         let mut zhipu = state
@@ -8501,7 +8567,7 @@ model_provider = "c"
         resync_route(&state, &AppType::Codex).await.expect("resync");
         assert_eq!(
             catalog_slugs(),
-            vec!["gpt-a", "ccs-deepseek/deepseek-v4-pro"]
+            vec!["gpt-a", "ccs-deepseek/deepseek-v4-pro", "ccs-a/gpt-a"]
         );
         switch_route(&state, &AppType::Codex, "deepseek")
             .await

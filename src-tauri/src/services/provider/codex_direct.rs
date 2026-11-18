@@ -116,6 +116,7 @@ pub(crate) enum Target<'a> {
         route: &'a Provider,
         base_url: &'a str,
         stack: &'a [Member],
+        route_key: Option<&'a str>,
     },
 }
 
@@ -720,9 +721,11 @@ pub(crate) fn plan(
         }
     };
 
-    let stack = match target {
-        Target::Proxy { stack, .. } => *stack,
-        Target::Direct(_) => &[],
+    let (stack, route_key): (&[Member], _) = match target {
+        Target::Proxy {
+            stack, route_key, ..
+        } => (*stack, *route_key),
+        Target::Direct(_) => (&[], None),
     };
     // 聚合模式下不写行里的子代理设置：行里是路由那家的模型名，主模型换成别家的 Stack 模型
     // 后，子代理会被悄悄发回路由那家。改用聚合面板的设备级设置（见 [`stack_subagent_nested`]）。
@@ -748,7 +751,7 @@ pub(crate) fn plan(
             effort.as_deref(),
         ));
     }
-    let catalog = match (stack_catalog, provider, &projection) {
+    let mut catalog = match (stack_catalog, provider, &projection) {
         (Some(catalog), _, _) => {
             // 窗口类全局键会覆盖目录里的每一行，改由各家写进自己的行。
             exclusive.retain(|(key, _)| !STACK_SUNK_WINDOW_KEYS.contains(&key.as_str()));
@@ -764,6 +767,15 @@ pub(crate) fn plan(
         }
         _ => None,
     };
+    // 只扩展已经由 CCS 管理的目录。只剩一家且未配置目录时继续用 Codex 原生
+    // 列表，不为一个旧别名写入只含单个模型的文件，遮住其他原生模型。
+    if let (Some(key), Some(catalog), Some(provider), Some(projection)) =
+        (route_key, catalog.as_mut(), provider, &projection)
+    {
+        if !is_official(provider) && row_catalog_pointer(&projection.top).is_none() {
+            crate::codex_config::add_codex_route_aliases(catalog, key);
+        }
+    }
     let catalog = catalog
         .map(|catalog| sorted_json_bytes(&catalog))
         .transpose()?;
@@ -899,6 +911,7 @@ fn stack_subagent_nested(
 pub(crate) fn stack_subagent_choices(
     members: &[Member],
 ) -> Vec<crate::mode::stack::StackSubagentModel> {
+    let snapshot = crate::codex_config::OfficialModelSnapshot::default();
     let mut choices = Vec::new();
     for member in members {
         let Ok(projection) = project(&member.provider) else {
@@ -910,7 +923,7 @@ pub(crate) fn stack_subagent_choices(
             config_text: &config_text,
             profile: crate::proxy::providers::resolve_codex_catalog_tool_profile(&member.provider),
         };
-        let Ok(entries) = codex_stack_third_party_rows(&row) else {
+        let Ok(entries) = codex_stack_third_party_rows(&row, &snapshot) else {
             continue;
         };
         for entry in &entries {

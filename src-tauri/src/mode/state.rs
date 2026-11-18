@@ -146,6 +146,15 @@ impl StackState {
             .map(|(key, _)| key.as_str())
     }
 
+    /// 只有当前聚合成员能使用旧前缀；永久登记簿还保留着已移除的供应商。
+    pub fn active_member_key(&self, provider_id: &str) -> Option<&str> {
+        if self.enabled && self.is_member(provider_id) {
+            self.key_of(provider_id)
+        } else {
+            None
+        }
+    }
+
     pub fn is_member(&self, provider_id: &str) -> bool {
         self.members.iter().any(|id| id == provider_id)
     }

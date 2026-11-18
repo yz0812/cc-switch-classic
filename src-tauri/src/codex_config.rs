@@ -8,10 +8,9 @@ use crate::config::{
 use crate::error::AppError;
 use crate::model_capabilities::{image_input_capability_from_modalities, ImageInputCapability};
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
-#[cfg(not(test))]
-use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use std::cell::OnceCell;
 use std::fs;
 use std::process::{Command, Stdio};
 use toml_edit::DocumentMut;
@@ -2180,12 +2179,13 @@ fn codex_model_catalog_from_settings(
     if specs.is_empty() {
         return Ok(None);
     }
-    let mut catalog = codex_catalog_from_specs_for_row(&specs, config_text, profile)?;
+    let snapshot = OfficialModelSnapshot::default();
+    let mut catalog = codex_catalog_from_specs_for_row(&specs, config_text, profile, &snapshot)?;
     if let Some(model) = codex_card_auto_review_model(settings) {
         apply_codex_auto_review_model(&mut catalog, model);
     }
     if !codex_card_keeps_official_speed_tiers(settings) {
-        clear_codex_official_speed_tiers(&mut catalog, config_text, profile);
+        clear_codex_official_speed_tiers(&mut catalog, config_text, profile, &snapshot);
     }
     Ok(Some(catalog))
 }
@@ -2205,6 +2205,7 @@ fn clear_codex_official_speed_tiers(
     catalog: &mut Value,
     config_text: &str,
     profile: CodexCatalogToolProfile,
+    snapshot: &OfficialModelSnapshot,
 ) {
     if !matches!(
         profile,
@@ -2216,13 +2217,13 @@ fn clear_codex_official_speed_tiers(
     let Some(entries) = catalog.get_mut("models").and_then(Value::as_array_mut) else {
         return;
     };
-    let official = codex_openai_official_models();
+    let official = snapshot.rows();
     for entry in entries.iter_mut() {
         let Some(slug) = entry.get("slug").and_then(Value::as_str) else {
             continue;
         };
         // 生成时按同一规则找官方条目：找得到的行就是镜像出来的那些。
-        let Some(_) = find_codex_official_model(slug, &official) else {
+        let Some(_) = find_codex_official_model(slug, official) else {
             continue;
         };
         if let Some(obj) = entry.as_object_mut() {
@@ -2270,10 +2271,16 @@ pub(crate) fn apply_codex_auto_review_model(catalog: &mut Value, model: &str) ->
     true
 }
 
-/// Codex 自带的 OpenAI 官方模型列表（`codex debug models --bundled`），给第三方的 GPT
-/// 行按模型名找官方条目用。只缓存成功读到的列表：Codex 升级后要重启 CC Switch 才换新。
-#[cfg(not(test))]
-static CODEX_OPENAI_OFFICIAL_MODELS_CACHE: OnceCell<Vec<Value>> = OnceCell::new();
+/// 每次目录投影独占一份延迟加载的快照。同一批成员读同一个 CLI 版本，
+/// 下次投影重新探测（npm 的启动脚本路径在升级前后可以完全相同）。
+#[derive(Default)]
+pub(crate) struct OfficialModelSnapshot(OnceCell<Vec<Value>>);
+
+impl OfficialModelSnapshot {
+    fn rows(&self) -> &[Value] {
+        self.0.get_or_init(codex_openai_official_models)
+    }
+}
 
 #[cfg(test)]
 thread_local! {
@@ -2291,15 +2298,10 @@ fn codex_static_official_models() -> Vec<Value> {
 /// 写的证明不了（见 `codex_official_models`）。
 #[cfg(not(test))]
 fn codex_openai_official_models() -> Vec<Value> {
-    CODEX_OPENAI_OFFICIAL_MODELS_CACHE
-        .get_or_try_init(|| {
-            load_codex_bundled_models()
-                .ok()
-                .and_then(normalize_codex_native_rows)
-                .ok_or(())
-        })
-        .cloned()
-        .unwrap_or_else(|_| codex_static_official_models())
+    load_codex_bundled_models()
+        .ok()
+        .and_then(normalize_codex_native_rows)
+        .unwrap_or_else(codex_static_official_models)
 }
 
 #[cfg(test)]
@@ -2402,6 +2404,7 @@ fn codex_catalog_from_specs_for_row(
     specs: &[CodexCatalogModelSpec],
     config_text: &str,
     profile: CodexCatalogToolProfile,
+    snapshot: &OfficialModelSnapshot,
 ) -> Result<Value, AppError> {
     let windows = RowWindows::of(config_text);
     // Vendors that publish an OFFICIAL Codex models.json for their native
@@ -2446,16 +2449,16 @@ fn codex_catalog_from_specs_for_row(
     // 官方条目里的 custom 工具，这条路不照搬。Copilot 仍按自身的目录配置生成，
     // 保留账号模型的上下文窗口和并行工具能力，而不是套用官方 GPT 的能力。
     let official = match profile {
-        CodexCatalogToolProfile::Anthropic | CodexCatalogToolProfile::Copilot => Vec::new(),
+        CodexCatalogToolProfile::Anthropic | CodexCatalogToolProfile::Copilot => &[][..],
         CodexCatalogToolProfile::NativeResponses | CodexCatalogToolProfile::ProxyChat => {
-            codex_openai_official_models()
+            snapshot.rows()
         }
     };
     let entries: Vec<Value> = specs
         .iter()
         .enumerate()
         .map(|(index, spec)| {
-            let mut entry = match find_codex_official_model(&spec.model, &official) {
+            let mut entry = match find_codex_official_model(&spec.model, official) {
                 Some(found) => codex_official_model_entry(
                     found,
                     &spec.model,
@@ -2534,7 +2537,12 @@ pub(crate) fn codex_single_model_catalog(
         model: model.to_string(),
         ..CodexCatalogModelSpec::default()
     };
-    codex_catalog_from_specs_for_row(&[spec], config_text, profile)
+    codex_catalog_from_specs_for_row(
+        &[spec],
+        config_text,
+        profile,
+        &OfficialModelSnapshot::default(),
+    )
 }
 
 /// 一家第三方供应商发布的模型：行里的模型目录；没有配置目录时只有行的 `model`。
@@ -2630,9 +2638,10 @@ pub(crate) fn plan_codex_stack_catalog(
     stack: &[CodexStackCatalogMember<'_>],
     classic_subagents: bool,
 ) -> Result<Value, AppError> {
+    let snapshot = OfficialModelSnapshot::default();
     let mut entries = match route {
         CodexStackRoute::ThirdParty(row) => {
-            let mut rows = codex_stack_third_party_rows(&row)?;
+            let mut rows = codex_stack_third_party_rows(&row, &snapshot)?;
             for entry in &mut rows {
                 if let Some(obj) = entry.as_object_mut() {
                     join_stack_history(obj);
@@ -2659,7 +2668,7 @@ pub(crate) fn plan_codex_stack_catalog(
         }
     };
     for member in stack {
-        for mut entry in codex_stack_third_party_rows(&member.row)? {
+        for mut entry in codex_stack_third_party_rows(&member.row, &snapshot)? {
             let Some(obj) = entry.as_object_mut() else {
                 continue;
             };
@@ -2717,6 +2726,39 @@ pub(crate) fn plan_codex_stack_catalog(
     Ok(json!({ "models": entries }))
 }
 
+/// 成员变成默认路由后，旧窗口仍可以保存、发送这个成员的稳定 ID。
+/// 代理已能按原 key 转发；给它补相同的模型元数据，但不在选择器里展示两次。
+/// 在子代理和审批选择校验之后调用：兼容行不增加面板可配置的模型。
+pub(crate) fn add_codex_route_aliases(catalog: &mut Value, key: &str) {
+    let Some(rows) = catalog["models"].as_array_mut() else {
+        return;
+    };
+    let mut slugs: HashSet<String> = rows
+        .iter()
+        .filter_map(|r| r["slug"].as_str().map(str::to_owned))
+        .collect();
+    let visible_len = rows.len();
+    for index in 0..visible_len {
+        let Some(model) = rows[index]["slug"].as_str() else {
+            continue;
+        };
+        if !matches!(
+            crate::mode::stack::decode(&crate::app_config::AppType::Codex, model),
+            crate::mode::stack::Decoded::Plain
+        ) {
+            continue;
+        }
+        let id = crate::mode::stack::encode(&crate::app_config::AppType::Codex, key, model, false);
+        if slugs.insert(id.clone()) {
+            let mut alias = rows[index].clone();
+            alias["slug"] = json!(id);
+            alias["visibility"] = json!("hide");
+            alias["priority"] = json!(rows.len() + 1);
+            rows.push(alias);
+        }
+    }
+}
+
 /// Codex 按目录行的 `multi_agent_version` 决定子 agent 用哪套工具（codex-rs
 /// `session/turn_context.rs`）。新版（`"v2"`）把派给子 agent 的任务交给主 agent 那家后端加密，
 /// 子 agent 换到别家就解不开；经典（`"v1"`）的任务是明文。聚合模式下主、子 agent 可以是不同
@@ -2728,12 +2770,13 @@ const CODEX_CLASSIC_SUBAGENTS: &str = "v1";
 /// [`join_stack_history`] 统一改写）。
 pub(crate) fn codex_stack_third_party_rows(
     row: &CodexCatalogRow<'_>,
+    snapshot: &OfficialModelSnapshot,
 ) -> Result<Vec<Value>, AppError> {
     let specs = codex_published_specs(row.settings, row.config_text);
     if specs.is_empty() {
         return Ok(Vec::new());
     }
-    let catalog = codex_catalog_from_specs_for_row(&specs, row.config_text, row.profile)?;
+    let catalog = codex_catalog_from_specs_for_row(&specs, row.config_text, row.profile, snapshot)?;
     let mut entries = match catalog {
         Value::Object(mut obj) => match obj.remove("models") {
             Some(Value::Array(entries)) => entries,
@@ -5704,6 +5747,18 @@ wire_api = "responses"
             deepseek[0]["model_messages"]["instructions_template"],
             "GPT-6 Sol prompt"
         );
+    }
+
+    #[test]
+    fn bundled_rows_are_stable_within_one_projection_and_refresh_on_the_next() {
+        let snapshot = OfficialModelSnapshot::default();
+        with_official_models(vec![], || assert!(snapshot.rows().is_empty()));
+        with_official_models(official_gpt_rows(), || {
+            assert!(snapshot.rows().is_empty());
+            let next = OfficialModelSnapshot::default();
+            let sol = find_codex_official_model("gpt-6-sol", next.rows()).unwrap();
+            assert_eq!(sol["service_tiers"][0]["id"], "priority");
+        });
     }
 
     #[test]
